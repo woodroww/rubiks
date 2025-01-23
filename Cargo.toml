@@ -9,6 +9,7 @@ edition = "2021"
 # Remember to revert "dynamic_linking" this before releasing your game
 bevy = { version = "0.15.0", features = ["dynamic_linking"] }
 bevy-inspector-egui = "0.28.0"
+# https://docs.rs/smooth-bevy-cameras/latest/smooth_bevy_cameras/
 smooth-bevy-cameras = "0.13.0"
 
 # Enable a small amount of optimization in debug mode
