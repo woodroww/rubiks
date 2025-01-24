@@ -150,98 +150,149 @@ fn keyboard(
 
         match press {
             KeyCode::KeyU => {
-                println!("left vertical plane counter clockwise");
+                //println!("left vertical plane counter clockwise");
                 let buddies = &z_buddies;
-                // [-2, -4, 0]
                 let plane_key = -2;
                 let entry = buddies.get(&plane_key).unwrap();
                 for (cube, _) in entry {
                     if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
                         //trans.rotate_y(time.delta_secs() / 2.);
-                        trans.rotate_around(Vec3::default(), Quat::from_rotation_z((45.0_f32).to_radians()));
+                        trans.rotate_around(Vec3::default(), Quat::from_rotation_z((-45.0_f32).to_radians()));
                     }
                 }
             }
             KeyCode::KeyI => {
-                println!("middle vertical plane counter clockwise");
+                //println!("middle vertical plane counter clockwise");
                 let buddies = &z_buddies;
-                // [-2, -4, 0]
                 let plane_key = 0;
                 let entry = buddies.get(&plane_key).unwrap();
                 for (cube, _) in entry {
                     if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
                         //trans.rotate_y(time.delta_secs() / 2.);
-                        trans.rotate_around(Vec3::default(), Quat::from_rotation_z((45.0_f32).to_radians()));
+                        trans.rotate_around(Vec3::default(), Quat::from_rotation_z((-45.0_f32).to_radians()));
                     }
                 }
             }
             KeyCode::KeyO => {
-                println!("right vertical plane counter clockwise");
+                //println!("right vertical plane counter clockwise");
                 let buddies = &z_buddies;
-                // [-2, -4, 0]
                 let plane_key = 2;
                 let entry = buddies.get(&plane_key).unwrap();
                 for (cube, _) in entry {
                     if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
                         //trans.rotate_y(time.delta_secs() / 2.);
-                        trans.rotate_around(Vec3::default(), Quat::from_rotation_z((45.0_f32).to_radians()));
+                        trans.rotate_around(Vec3::default(), Quat::from_rotation_z((-45.0_f32).to_radians()));
                     }
                 }
             }
             KeyCode::KeyJ => {
-                println!("left vertical plane clockwise");
+                //println!("left vertical plane clockwise");
                 let buddies = &z_buddies;
                 let plane_key = -2;
                 let entry = buddies.get(&plane_key).unwrap();
                 for (cube, _) in entry {
                     if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
                         //trans.rotate_y(time.delta_secs() / 2.);
-                        trans.rotate_around(Vec3::default(), Quat::from_rotation_z((-45.0_f32).to_radians()));
+                        trans.rotate_around(Vec3::default(), Quat::from_rotation_z((45.0_f32).to_radians()));
                     }
                 }
             }
             KeyCode::KeyK => {
-                println!("middle vertical plane clockwise");
+                //println!("middle vertical plane clockwise");
                 let buddies = &z_buddies;
                 let plane_key = 0;
                 let entry = buddies.get(&plane_key).unwrap();
                 for (cube, _) in entry {
                     if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
                         //trans.rotate_y(time.delta_secs() / 2.);
-                        trans.rotate_around(Vec3::default(), Quat::from_rotation_z((-45.0_f32).to_radians()));
+                        trans.rotate_around(Vec3::default(), Quat::from_rotation_z((45.0_f32).to_radians()));
                     }
                 }
             }
             KeyCode::KeyL => {
-                println!("right vertical plane clockwise");
+                //println!("right vertical plane clockwise");
                 let buddies = &z_buddies;
                 let plane_key = 2;
                 let entry = buddies.get(&plane_key).unwrap();
                 for (cube, _) in entry {
                     if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
                         //trans.rotate_y(time.delta_secs() / 2.);
-                        trans.rotate_around(Vec3::default(), Quat::from_rotation_z((-45.0_f32).to_radians()));
+                        trans.rotate_around(Vec3::default(), Quat::from_rotation_z((45.0_f32).to_radians()));
                     }
                 }
             }
 
             KeyCode::KeyW => {
-                println!("top plane clockwise");
+                //println!("top plane clockwise");
+                let buddies = &y_buddies;
+                let plane_key = 2;
+                let entry = buddies.get(&plane_key).unwrap();
+                for (cube, _) in entry {
+                    if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
+                        //trans.rotate_y(time.delta_secs() / 2.);
+                        trans.rotate_around(Vec3::default(), Quat::from_rotation_y((-45.0_f32).to_radians()));
+                    }
+                }
             }
             KeyCode::KeyR => {
-                println!("top plane counter clockwise");
+                //println!("top plane counter clockwise");
+                let buddies = &y_buddies;
+                let plane_key = 2;
+                let entry = buddies.get(&plane_key).unwrap();
+                for (cube, _) in entry {
+                    if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
+                        //trans.rotate_y(time.delta_secs() / 2.);
+                        trans.rotate_around(Vec3::default(), Quat::from_rotation_y((45.0_f32).to_radians()));
+                    }
+                }
             }
             KeyCode::KeyS => {
-                println!("middle horizontal plane clockwise");
+                //println!("middle horizontal plane clockwise");
+                let buddies = &y_buddies;
+                let plane_key = 0;
+                let entry = buddies.get(&plane_key).unwrap();
+                for (cube, _) in entry {
+                    if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
+                        //trans.rotate_y(time.delta_secs() / 2.);
+                        trans.rotate_around(Vec3::default(), Quat::from_rotation_y((-45.0_f32).to_radians()));
+                    }
+                }
             }
             KeyCode::KeyF => {
-                println!("middle horizontal plane counter clockwise");
+                //println!("middle horizontal plane counter clockwise");
+                let buddies = &y_buddies;
+                let plane_key = 0;
+                let entry = buddies.get(&plane_key).unwrap();
+                for (cube, _) in entry {
+                    if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
+                        //trans.rotate_y(time.delta_secs() / 2.);
+                        trans.rotate_around(Vec3::default(), Quat::from_rotation_y((45.0_f32).to_radians()));
+                    }
+                }
             }
             KeyCode::KeyX => {
-                println!("bottom plane clockwise");
+                //println!("bottom plane clockwise");
+                let buddies = &y_buddies;
+                let plane_key = -2;
+                let entry = buddies.get(&plane_key).unwrap();
+                for (cube, _) in entry {
+                    if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
+                        //trans.rotate_y(time.delta_secs() / 2.);
+                        trans.rotate_around(Vec3::default(), Quat::from_rotation_y((-45.0_f32).to_radians()));
+                    }
+                }
             }
             KeyCode::KeyV => {
-                println!("bottom plane counter clockwise");
+                //println!("bottom plane counter clockwise");
+                let buddies = &y_buddies;
+                let plane_key = -2;
+                let entry = buddies.get(&plane_key).unwrap();
+                for (cube, _) in entry {
+                    if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
+                        //trans.rotate_y(time.delta_secs() / 2.);
+                        trans.rotate_around(Vec3::default(), Quat::from_rotation_y((45.0_f32).to_radians()));
+                    }
+                }
             }
 
             _ => {
@@ -282,7 +333,7 @@ fn spawn_camera(mut commands: Commands) {
     let target: Vec3 = Vec3::ZERO;
 
     let eye = Vec3 {
-        x: -10.0,
+        x: -20.0,
         y: 10.0,
         z: 16.0,
     };
