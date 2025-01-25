@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use bevy::window::WindowResolution;
 use bevy::{gltf::Gltf, reflect::List};
 use bevy::prelude::*;
 use smooth_bevy_cameras::{
@@ -9,8 +10,17 @@ use smooth_bevy_cameras::{
 
 fn main() {
     App::new()
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                resolution: WindowResolution::new(600.0, 600.0),
+                title: "Cube this".to_string(),
+                resizable: true,
+                position: WindowPosition::At(IVec2::new(200, 200)),
+                ..default()
+            }),
+            ..default()
+        }))
         .add_plugins((
-            DefaultPlugins,
             OrbitCameraPlugin::default(),
             LookTransformPlugin,
         ))
@@ -116,22 +126,22 @@ fn keyboard(
     for press in keys.get_just_released() {
 
         // cubes can't be moving when getting the plane locations
-        let mut z_buddies: HashMap<i32, Vec<(Entity, Name)>> = HashMap::new();
-        let mut y_buddies: HashMap<i32, Vec<(Entity, Name)>> = HashMap::new();
-        let mut x_buddies: HashMap<i32, Vec<(Entity, Name)>> = HashMap::new();
+        let mut z_planes: HashMap<i32, Vec<(Entity, Name)>> = HashMap::new();
+        let mut y_planes: HashMap<i32, Vec<(Entity, Name)>> = HashMap::new();
+        let mut x_planes: HashMap<i32, Vec<(Entity, Name)>> = HashMap::new();
         for (entity, transform, name) in &mut query {
-            let entry = x_buddies.entry(transform.translation.x.round() as i32).or_insert(vec![]);
+            let entry = x_planes.entry(transform.translation.x.round() as i32).or_insert(vec![]);
             //println!("x_buddies {} {} -> {}", name, transform.translation.x, transform.translation.x.round() as i32);
             entry.push((entity, name.clone()));
-            let entry = y_buddies.entry(transform.translation.y.round() as i32).or_insert(vec![]);
+            let entry = y_planes.entry(transform.translation.y.round() as i32).or_insert(vec![]);
             //println!("y_buddies {} {} -> {}", name, transform.translation.y, transform.translation.y.round() as i32);
             entry.push((entity, name.clone()));
-            let entry = z_buddies.entry(transform.translation.z.round() as i32).or_insert(vec![]);
+            let entry = z_planes.entry(transform.translation.z.round() as i32).or_insert(vec![]);
             //println!("z_buddies {} {} -> {}", name, transform.translation.z, transform.translation.z.round() as i32);
             entry.push((entity, name.clone()));
             //println!();
         }
-        for buddies in [&z_buddies, &y_buddies, &x_buddies] {
+        for buddies in [&z_planes, &y_planes, &x_planes] {
             for (_k, v) in buddies {
                 //assert!(v.len() == 9);
             }
@@ -151,7 +161,7 @@ fn keyboard(
         match press {
             KeyCode::KeyU => {
                 //println!("left vertical plane counter clockwise");
-                let buddies = &z_buddies;
+                let buddies = &z_planes;
                 let plane_key = -2;
                 let entry = buddies.get(&plane_key).unwrap();
                 for (cube, _) in entry {
@@ -163,7 +173,7 @@ fn keyboard(
             }
             KeyCode::KeyI => {
                 //println!("middle vertical plane counter clockwise");
-                let buddies = &z_buddies;
+                let buddies = &z_planes;
                 let plane_key = 0;
                 let entry = buddies.get(&plane_key).unwrap();
                 for (cube, _) in entry {
@@ -175,7 +185,7 @@ fn keyboard(
             }
             KeyCode::KeyO => {
                 //println!("right vertical plane counter clockwise");
-                let buddies = &z_buddies;
+                let buddies = &z_planes;
                 let plane_key = 2;
                 let entry = buddies.get(&plane_key).unwrap();
                 for (cube, _) in entry {
@@ -187,7 +197,7 @@ fn keyboard(
             }
             KeyCode::KeyJ => {
                 //println!("left vertical plane clockwise");
-                let buddies = &z_buddies;
+                let buddies = &z_planes;
                 let plane_key = -2;
                 let entry = buddies.get(&plane_key).unwrap();
                 for (cube, _) in entry {
@@ -199,7 +209,7 @@ fn keyboard(
             }
             KeyCode::KeyK => {
                 //println!("middle vertical plane clockwise");
-                let buddies = &z_buddies;
+                let buddies = &z_planes;
                 let plane_key = 0;
                 let entry = buddies.get(&plane_key).unwrap();
                 for (cube, _) in entry {
@@ -211,7 +221,7 @@ fn keyboard(
             }
             KeyCode::KeyL => {
                 //println!("right vertical plane clockwise");
-                let buddies = &z_buddies;
+                let buddies = &z_planes;
                 let plane_key = 2;
                 let entry = buddies.get(&plane_key).unwrap();
                 for (cube, _) in entry {
@@ -224,7 +234,7 @@ fn keyboard(
 
             KeyCode::KeyW => {
                 //println!("top plane clockwise");
-                let buddies = &y_buddies;
+                let buddies = &y_planes;
                 let plane_key = 2;
                 let entry = buddies.get(&plane_key).unwrap();
                 for (cube, _) in entry {
@@ -236,7 +246,7 @@ fn keyboard(
             }
             KeyCode::KeyR => {
                 //println!("top plane counter clockwise");
-                let buddies = &y_buddies;
+                let buddies = &y_planes;
                 let plane_key = 2;
                 let entry = buddies.get(&plane_key).unwrap();
                 for (cube, _) in entry {
@@ -248,7 +258,7 @@ fn keyboard(
             }
             KeyCode::KeyS => {
                 //println!("middle horizontal plane clockwise");
-                let buddies = &y_buddies;
+                let buddies = &y_planes;
                 let plane_key = 0;
                 let entry = buddies.get(&plane_key).unwrap();
                 for (cube, _) in entry {
@@ -260,7 +270,7 @@ fn keyboard(
             }
             KeyCode::KeyF => {
                 //println!("middle horizontal plane counter clockwise");
-                let buddies = &y_buddies;
+                let buddies = &y_planes;
                 let plane_key = 0;
                 let entry = buddies.get(&plane_key).unwrap();
                 for (cube, _) in entry {
@@ -272,7 +282,7 @@ fn keyboard(
             }
             KeyCode::KeyX => {
                 //println!("bottom plane clockwise");
-                let buddies = &y_buddies;
+                let buddies = &y_planes;
                 let plane_key = -2;
                 let entry = buddies.get(&plane_key).unwrap();
                 for (cube, _) in entry {
@@ -284,7 +294,7 @@ fn keyboard(
             }
             KeyCode::KeyV => {
                 //println!("bottom plane counter clockwise");
-                let buddies = &y_buddies;
+                let buddies = &y_planes;
                 let plane_key = -2;
                 let entry = buddies.get(&plane_key).unwrap();
                 for (cube, _) in entry {
@@ -335,7 +345,7 @@ fn spawn_camera(mut commands: Commands) {
     let eye = Vec3 {
         x: -20.0,
         y: 10.0,
-        z: 16.0,
+        z: 7.0,
     };
     let controller = OrbitCameraController::default();
     println!("controller.enabled: {}", controller.enabled);
