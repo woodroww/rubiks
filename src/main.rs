@@ -1,12 +1,20 @@
 use std::collections::HashMap;
+use std::net::{SocketAddr, TcpListener};
 
 use bevy::window::WindowResolution;
 use bevy::{gltf::Gltf, reflect::List};
 use bevy::prelude::*;
+use bevy_tokio_tasks::{TaskContext, TokioTasksPlugin, TokioTasksRuntime};
 use smooth_bevy_cameras::{
     controllers::orbit::{OrbitCameraBundle, OrbitCameraController, OrbitCameraPlugin},
     LookTransformPlugin,
 };
+
+mod tokioio;
+
+use hyper::{body::{Bytes, Body, Frame}, Method, Request, Response, StatusCode};
+
+use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
 
 fn main() {
     App::new()
@@ -23,8 +31,9 @@ fn main() {
         .add_plugins((
             OrbitCameraPlugin::default(),
             LookTransformPlugin,
+            TokioTasksPlugin::default(),
         ))
-        .add_systems(Startup, (spawn_camera, load_gltf))
+        .add_systems(Startup, (spawn_camera, load_gltf, start_hyper))
         .add_systems(Update, move_cubes.run_if(in_state(AppState::Running)))
         .add_systems(Update, spawn_gltf_objects.run_if(in_state(AppState::AssetLoading)))
         .add_systems(Update, keyboard.run_if(in_state(AppState::Running)))
@@ -72,16 +81,120 @@ fn spawn_gltf_objects(
     next_state.set(AppState::Running);
 }
 
+fn start_hyper(runtime: ResMut<TokioTasksRuntime>) {
+    runtime.spawn_background_task(start_bloody_thing);
+    println!("start_hyper");
+}
+
+async fn start_bloody_thing(ctx: TaskContext) {
+    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+
+    let listener = tokio::net::TcpListener::bind(addr).await.expect("fudge");
+    println!("Listening on http://{}", addr);
+
+    loop {
+
+        let (stream, _) = listener.accept().await.expect("fudge");
+        let io = tokioio::TokioIo::new(stream);
+
+        tokio::task::spawn(async move {
+            let http = hyper::server::conn::http1::Builder::new();
+            let conn = http.serve_connection(io, hyper::service::service_fn(echo));
+            if let Err(err) = conn.await {
+                println!("Error serving connection: {:?}", err);
+            }
+        });
+    }
+}
+
+fn empty() -> BoxBody<Bytes, hyper::Error> {
+    Empty::<Bytes>::new()
+        .map_err(|never| match never {})
+        .boxed()
+}
+
+fn full<T: Into<Bytes>>(chunk: T) -> BoxBody<Bytes, hyper::Error> {
+    Full::new(chunk.into())
+        .map_err(|never| match never {})
+        .boxed()
+}
+
+/// This is our service handler. It receives a Request, routes on its
+/// path, and returns a Future of a Response.
+async fn echo(
+    req: Request<hyper::body::Incoming>,
+) -> Result<Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
+    match (req.method(), req.uri().path()) {
+        // Serve some instructions at /
+        // curl 127.0.0.1:3000
+        (&Method::GET, "/") => Ok(Response::new(full(
+            "Try POSTing data to /echo such as: `curl localhost:3000/echo -XPOST -d \"hello world\"`",
+        ))),
+
+        // Simply echo the body back to the client.
+        // curl 127.0.0.1:3000/echo -XPOST -d "hello world"
+        (&Method::POST, "/echo") => Ok(Response::new(req.into_body().boxed())),
+
+        // Convert to uppercase before sending back to client using a stream.
+        (&Method::POST, "/echo/uppercase") => {
+            let frame_stream = req.into_body().map_frame(|frame| {
+                let frame = if let Ok(data) = frame.into_data() {
+                    data.iter()
+                        .map(|byte| byte.to_ascii_uppercase())
+                        .collect::<Bytes>()
+                } else {
+                    Bytes::new()
+                };
+
+                Frame::data(frame)
+            });
+
+            Ok(Response::new(frame_stream.boxed()))
+        }
+
+        // Reverse the entire body before sending back to the client.
+        //
+        // Since we don't know the end yet, we can't simply stream
+        // the chunks as they arrive as we did with the above uppercase endpoint.
+        // So here we do `.await` on the future, waiting on concatenating the full body,
+        // then afterwards the content can be reversed. Only then can we return a `Response`.
+        (&Method::POST, "/echo/reversed") => {
+            // To protect our server, reject requests with bodies larger than
+            // 64kbs of data.
+            let max = req.body().size_hint().upper().unwrap_or(u64::MAX);
+            if max > 1024 * 64 {
+                let mut resp = Response::new(full("Body too big"));
+                *resp.status_mut() = hyper::StatusCode::PAYLOAD_TOO_LARGE;
+                return Ok(resp);
+            }
+
+            let whole_body = req.collect().await?.to_bytes();
+
+            let reversed_body = whole_body.iter().rev().cloned().collect::<Vec<u8>>();
+            Ok(Response::new(full(reversed_body)))
+        }
+
+        // Return the 404 Not Found for other routes.
+        _ => {
+            let mut not_found = Response::new(empty());
+            *not_found.status_mut() = StatusCode::NOT_FOUND;
+            Ok(not_found)
+        }
+    }
+}
+
 fn setup_cube(
     mut commands: Commands,
     query: Query<(Entity, &mut Transform, &Name)>,
 ) {
     for (entity, trans, name) in query.iter() {
-        let mut splitsies = name.split("Cube.");
-        let _nothing_before = splitsies.next();
-        let after_cube = splitsies.next().unwrap();
-        if !after_cube.contains(".") {
-            commands.entity(entity).insert(RubikCube);
+        if name.starts_with("Cube.") {
+            let mut splitsies = name.split("Cube.");
+            let _nothing_before = splitsies.next();
+            let after_cube = splitsies.next().unwrap();
+            if !after_cube.contains(".") {
+                commands.entity(entity).insert(RubikCube);
+            }
         }
     }
 }
