@@ -5,6 +5,7 @@ use bevy::window::WindowResolution;
 use bevy::{gltf::Gltf, reflect::List};
 use bevy::prelude::*;
 use bevy_tokio_tasks::{TaskContext, TokioTasksPlugin, TokioTasksRuntime};
+use crossbeam_channel::{bounded, Receiver};
 use smooth_bevy_cameras::{
     controllers::orbit::{OrbitCameraBundle, OrbitCameraController, OrbitCameraPlugin},
     LookTransformPlugin,
@@ -61,6 +62,12 @@ pub struct RubikPlane {
 #[derive(Resource)]
 struct RubikScene(Handle<Gltf>);
 
+#[derive(Resource, Deref)]
+struct StreamReceiver(Receiver<u32>);
+
+#[derive(Event)]
+struct StreamEvent(u32);
+
 fn load_gltf(mut commands: Commands, asset_server: Res<AssetServer>) {
     let gltf = asset_server.load("rubik.glb");
     commands.insert_resource(RubikScene(gltf));
@@ -81,31 +88,75 @@ fn spawn_gltf_objects(
     next_state.set(AppState::Running);
 }
 
-fn start_hyper(runtime: ResMut<TokioTasksRuntime>) {
-    runtime.spawn_background_task(start_bloody_thing);
+fn start_hyper(mut commands: Commands, runtime: ResMut<TokioTasksRuntime>) {
+    let (tx, rx) = bounded::<u32>(1);
+    runtime.spawn_background_task(|_ctx| async move {
+        let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+
+        let listener = std::net::TcpListener::bind(addr).expect("fudge");
+        //let listener = tokio::net::TcpListener::bind(addr).await.expect("fudge");
+        println!("Listening on http://{}", addr);
+
+        loop {
+
+            //let (stream, _) = listener.accept().await.expect("fudge");
+            let (mut stream, _) = listener.accept().expect("fudge");
+            info!("listener.accept()");
+            let io = tokioio::TokioIo::new(stream);
+            tx.send(1234).unwrap();
+
+            let http = hyper::server::conn::http1::Builder::new();
+            let conn = http.serve_connection(io, hyper::service::service_fn(echo));
+            match conn.await {
+                Ok(_) => {
+                    println!("Served connection!");
+                }
+                Err(err) => {
+                    println!("Error serving connection: {:?}", err);
+                }
+            }
+        }
+    });
+
+    commands.insert_resource(StreamReceiver(rx));
     println!("start_hyper");
 }
 
-async fn start_bloody_thing(ctx: TaskContext) {
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+/*
 
-    let listener = tokio::net::TcpListener::bind(addr).await.expect("fudge");
-    println!("Listening on http://{}", addr);
+fn start_hyper(mut commands: Commands, runtime: ResMut<TokioTasksRuntime>) {
+    let (tx, rx) = bounded::<u32>(1);
+    runtime.spawn_background_task(|_| async move {
+        let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
 
-    loop {
+        let listener = std::net::TcpListener::bind(addr).expect("fudge");
+        println!("Listening on http://{}", addr);
 
-        let (stream, _) = listener.accept().await.expect("fudge");
-        let io = tokioio::TokioIo::new(stream);
+        loop {
+            let (mut stream, _) = listener.accept().expect("fudge");
+            let mut buf = [0; 128];
+            let _byte_count = stream.read(&mut buf);
 
-        tokio::task::spawn(async move {
-            let http = hyper::server::conn::http1::Builder::new();
-            let conn = http.serve_connection(io, hyper::service::service_fn(echo));
-            if let Err(err) = conn.await {
-                println!("Error serving connection: {:?}", err);
-            }
-        });
+            tx.send(123456).unwrap();
+        }
+    });
+    commands.insert_resource(StreamReceiver(rx));
+    println!("start_hyper");
+}
+
+// This system reads from the receiver and sends events to Bevy
+fn read_stream(receiver: Res<StreamReceiver>, mut events: EventWriter<StreamEvent>) {
+    for from_stream in receiver.try_iter() {
+        events.send(StreamEvent(from_stream));
     }
 }
+
+fn bevy_stream_event(mut _commands: Commands, mut reader: EventReader<StreamEvent>) {
+    for (per_frame, event) in reader.read().enumerate() {
+        info!("{:?} {:?}", per_frame, event);
+    }
+}
+*/
 
 fn empty() -> BoxBody<Bytes, hyper::Error> {
     Empty::<Bytes>::new()
