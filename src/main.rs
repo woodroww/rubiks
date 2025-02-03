@@ -1,21 +1,19 @@
 use std::collections::HashMap;
-use std::net::{SocketAddr, TcpListener};
+//use std::net::{SocketAddr, TcpListener};
 
 use bevy::window::WindowResolution;
 use bevy::{gltf::Gltf, reflect::List};
 use bevy::prelude::*;
-use bevy_tokio_tasks::{TaskContext, TokioTasksPlugin, TokioTasksRuntime};
-use crossbeam_channel::{bounded, Receiver};
+//use bevy_tokio_tasks::{TaskContext, TokioTasksPlugin, TokioTasksRuntime};
+//use crossbeam_channel::{bounded, Receiver};
 use smooth_bevy_cameras::{
     controllers::orbit::{OrbitCameraBundle, OrbitCameraController, OrbitCameraPlugin},
     LookTransformPlugin,
 };
 
-mod tokioio;
-
-use hyper::{body::{Bytes, Body, Frame}, Method, Request, Response, StatusCode};
-
-use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
+//mod tokioio;
+//use hyper::{body::{Bytes, Body, Frame}, Method, Request, Response, StatusCode};
+//use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
 
 fn main() {
     App::new()
@@ -32,10 +30,11 @@ fn main() {
         .add_plugins((
             OrbitCameraPlugin::default(),
             LookTransformPlugin,
-            TokioTasksPlugin::default(),
+            //TokioTasksPlugin::default(),
         ))
-        .add_systems(Startup, (spawn_camera, load_gltf, start_hyper))
-        .add_systems(Update, move_cubes.run_if(in_state(AppState::Running)))
+        .add_systems(Startup, (spawn_camera, load_gltf))
+        //.add_systems(Startup, start_hyper)
+        //.add_systems(Update, move_cubes.run_if(in_state(AppState::Running)))
         .add_systems(Update, spawn_gltf_objects.run_if(in_state(AppState::AssetLoading)))
         .add_systems(Update, keyboard.run_if(in_state(AppState::Running)))
         .add_systems(OnEnter(AppState::Running), setup_cube)
@@ -62,11 +61,13 @@ pub struct RubikPlane {
 #[derive(Resource)]
 struct RubikScene(Handle<Gltf>);
 
+/*
 #[derive(Resource, Deref)]
 struct StreamReceiver(Receiver<u32>);
 
 #[derive(Event)]
 struct StreamEvent(u32);
+    */
 
 fn load_gltf(mut commands: Commands, asset_server: Res<AssetServer>) {
     let gltf = asset_server.load("rubik.glb");
@@ -88,6 +89,7 @@ fn spawn_gltf_objects(
     next_state.set(AppState::Running);
 }
 
+    /*
 fn start_hyper(mut commands: Commands, runtime: ResMut<TokioTasksRuntime>) {
     let (tx, rx) = bounded::<u32>(1);
     runtime.spawn_background_task(|_ctx| async move {
@@ -121,9 +123,9 @@ fn start_hyper(mut commands: Commands, runtime: ResMut<TokioTasksRuntime>) {
     commands.insert_resource(StreamReceiver(rx));
     println!("start_hyper");
 }
+    */
 
 /*
-
 fn start_hyper(mut commands: Commands, runtime: ResMut<TokioTasksRuntime>) {
     let (tx, rx) = bounded::<u32>(1);
     runtime.spawn_background_task(|_| async move {
@@ -158,6 +160,7 @@ fn bevy_stream_event(mut _commands: Commands, mut reader: EventReader<StreamEven
 }
 */
 
+/*
 fn empty() -> BoxBody<Bytes, hyper::Error> {
     Empty::<Bytes>::new()
         .map_err(|never| match never {})
@@ -233,12 +236,13 @@ async fn echo(
         }
     }
 }
+*/
 
 fn setup_cube(
     mut commands: Commands,
     query: Query<(Entity, &mut Transform, &Name)>,
 ) {
-    for (entity, trans, name) in query.iter() {
+    for (entity, _trans, name) in query.iter() {
         if name.starts_with("Cube.") {
             let mut splitsies = name.split("Cube.");
             let _nothing_before = splitsies.next();
@@ -248,39 +252,6 @@ fn setup_cube(
             }
         }
     }
-}
-
-fn move_cubes(mut query: Query<(Entity, &mut Transform), With<RubikCube>>, time: Res<Time>) {
-    /*
-    let mut z_buddies: HashMap<i32, Vec<Entity>> = HashMap::new();
-    let mut y_buddies: HashMap<i32, Vec<Entity>> = HashMap::new();
-    let mut x_buddies: HashMap<i32, Vec<Entity>> = HashMap::new();
-    for (entity, transform) in &mut query {
-        let entry = z_buddies.entry(transform.translation.z as i32).or_insert(vec![]);
-        entry.push(entity);
-        let entry = y_buddies.entry(transform.translation.y as i32).or_insert(vec![]);
-        entry.push(entity);
-        let entry = x_buddies.entry(transform.translation.x as i32).or_insert(vec![]);
-        entry.push(entity);
-    }
-    println!("x_buddies");
-    print_buddies(&x_buddies);
-    println!("y_buddies");
-    print_buddies(&y_buddies);
-    println!("z_buddies");
-    print_buddies(&z_buddies);
-
-    let buddies = &y_buddies;
-    // [-2, -4, 0]
-    let plane_key = 0;
-    let entry = buddies.get(&plane_key).unwrap();
-    for cube in entry {
-        if let Some((_, mut trans)) = query.iter_mut().find(|(entity, _)| entity == cube) {
-            //trans.rotate_y(time.delta_secs() / 2.);
-            trans.rotate_around(Vec3::default(), Quat::from_rotation_y(time.delta_secs()));
-        }
-    }
-    */
 }
 
 fn keyboard(
