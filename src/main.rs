@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 use bevy::window::WindowResolution;
-use bevy::{gltf::Gltf, reflect::List};
+use bevy::gltf::Gltf;
 use bevy::prelude::*;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
-use bevy_tweening::lens::TransformRotateAxisLens;
-use bevy_tweening::{Animator, Tween, TweeningPlugin};
+use bevy_tweening::{Animator, Tween, TweenCompleted, TweeningPlugin};
 use rotate_plane::RotatePlane;
 
 mod rotate_plane;
@@ -27,9 +26,10 @@ fn main() {
         ))
         .add_systems(Startup, (spawn_camera, load_gltf))
         .add_systems(Update, spawn_gltf_objects.run_if(in_state(AppState::AssetLoading)))
-        .add_systems(Update, keyboard.run_if(in_state(AppState::Running)))
+        .add_systems(Update, (keyboard, animation_complete, check_moving).run_if(in_state(AppState::Running)))
         .add_systems(OnEnter(AppState::Running), setup_cube)
         .insert_state(AppState::default())
+        .insert_resource(AppData { moving_cubes: false, key_buffer: vec![] })
         .run();
 }
 
@@ -44,21 +44,8 @@ enum AppState {
 #[reflect(Component)]
 pub struct RubikCube;
 
-#[derive(Component, Reflect, Default, Debug)]
-#[reflect(Component)]
-pub struct RubikPlane {
-}
-
 #[derive(Resource)]
 struct RubikScene(Handle<Gltf>);
-
-/*
-#[derive(Resource, Deref)]
-struct StreamReceiver(Receiver<u32>);
-
-#[derive(Event)]
-struct StreamEvent(u32);
-    */
 
 fn load_gltf(mut commands: Commands, asset_server: Res<AssetServer>) {
     let gltf = asset_server.load("rubik.glb");
@@ -96,96 +83,98 @@ fn setup_cube(
     }
 }
 
+
+#[derive(Resource)]
+struct AppData {
+    moving_cubes: bool,
+    key_buffer: Vec<KeyCode>,
+}
+
+fn check_moving(
+    mut app_data: ResMut<AppData>,
+    query: Query<Entity, (With<RubikCube>, With<Animator<Transform>>)>,
+) {
+    if query.iter().len() > 0 {
+        app_data.moving_cubes = true;
+    } else {
+        app_data.moving_cubes = false;
+    }
+}
+
 fn keyboard(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
-    mut query: Query<(Entity, &mut Transform, &Name), With<RubikCube>>,
+    mut app_data: ResMut<AppData>,
+    mut query: Query<(Entity, &mut Transform), With<RubikCube>>,
 ) {
+    if app_data.moving_cubes {
+        app_data.key_buffer.extend(keys.get_just_released());
+        return;
+    }
     for press in keys.get_just_released() {
-
         // cubes can't be moving when getting the plane locations
-        let mut z_planes: HashMap<i32, Vec<(Entity, Name)>> = HashMap::new();
-        let mut y_planes: HashMap<i32, Vec<(Entity, Name)>> = HashMap::new();
-        let mut x_planes: HashMap<i32, Vec<(Entity, Name)>> = HashMap::new();
-        for (entity, transform, name) in &mut query {
+        let mut z_planes: HashMap<i32, Vec<Entity>> = HashMap::new();
+        let mut y_planes: HashMap<i32, Vec<Entity>> = HashMap::new();
+        let mut x_planes: HashMap<i32, Vec<Entity>> = HashMap::new();
+        for (entity, transform) in &mut query {
             let entry = x_planes.entry(transform.translation.x.round() as i32).or_insert(vec![]);
-            //println!("x_buddies {} {} -> {}", name, transform.translation.x, transform.translation.x.round() as i32);
-            entry.push((entity, name.clone()));
+            entry.push(entity);
             let entry = y_planes.entry(transform.translation.y.round() as i32).or_insert(vec![]);
-            //println!("y_buddies {} {} -> {}", name, transform.translation.y, transform.translation.y.round() as i32);
-            entry.push((entity, name.clone()));
+            entry.push(entity);
             let entry = z_planes.entry(transform.translation.z.round() as i32).or_insert(vec![]);
-            //println!("z_buddies {} {} -> {}", name, transform.translation.z, transform.translation.z.round() as i32);
-            entry.push((entity, name.clone()));
-            //println!();
-        }
-        for buddies in [&z_planes, &y_planes, &x_planes] {
-            for (_k, v) in buddies {
-                //assert!(v.len() == 9);
-            }
+            entry.push(entity);
         }
 
         let rotate_cubes = match press {
             KeyCode::KeyU => {
                 //println!("left vertical plane counter clockwise");
-                let plane_key = -2;
-                Some((Vec3::Z, z_planes.get(&plane_key).unwrap()))
+                Some((Vec3::Z, z_planes.get(&-2)))
             }
             KeyCode::KeyI => {
                 //println!("middle vertical plane counter clockwise");
-                let plane_key = 0;
-                Some((Vec3::Z, z_planes.get(&plane_key).unwrap()))
+                Some((Vec3::Z, z_planes.get(&0)))
             }
             KeyCode::KeyO => {
                 //println!("right vertical plane counter clockwise");
-                let plane_key = 2;
-                Some((Vec3::Z, z_planes.get(&plane_key).unwrap()))
+                Some((Vec3::Z, z_planes.get(&2)))
             }
             KeyCode::KeyJ => {
                 //println!("left vertical plane clockwise");
-                let plane_key = -2;
-                Some((Vec3::NEG_Z, z_planes.get(&plane_key).unwrap()))
+                Some((Vec3::NEG_Z, z_planes.get(&-2)))
             }
             KeyCode::KeyK => {
                 //println!("middle vertical plane clockwise");
-                let plane_key = 0;
-                Some((Vec3::NEG_Z, z_planes.get(&plane_key).unwrap()))
+                Some((Vec3::NEG_Z, z_planes.get(&0)))
             }
             KeyCode::KeyL => {
                 //println!("right vertical plane clockwise");
-                let plane_key = 2;
-                Some((Vec3::NEG_Z, z_planes.get(&plane_key).unwrap()))
+                Some((Vec3::NEG_Z, z_planes.get(&2)))
             }
 
             KeyCode::KeyW => {
                 //println!("top plane clockwise");
-                let plane_key = 2;
-                Some((Vec3::Y, y_planes.get(&plane_key).unwrap()))
-            }
-            KeyCode::KeyR => {
-                //println!("top plane counter clockwise");
-                let plane_key = 2;
-                Some((Vec3::Y, y_planes.get(&plane_key).unwrap()))
+                Some((Vec3::Y, y_planes.get(&2)))
             }
             KeyCode::KeyS => {
                 //println!("middle horizontal plane clockwise");
-                let plane_key = 0;
-                Some((Vec3::Y, y_planes.get(&plane_key).unwrap()))
-            }
-            KeyCode::KeyF => {
-                //println!("middle horizontal plane counter clockwise");
-                let plane_key = 0;
-                Some((Vec3::NEG_Y, y_planes.get(&plane_key).unwrap()))
+                Some((Vec3::Y, y_planes.get(&0)))
             }
             KeyCode::KeyX => {
                 //println!("bottom plane clockwise");
-                let plane_key = -2;
-                Some((Vec3::NEG_Y, y_planes.get(&plane_key).unwrap()))
+                Some((Vec3::Y, y_planes.get(&-2)))
+            }
+
+            KeyCode::KeyR => {
+                //println!("top plane counter clockwise");
+                Some((Vec3::NEG_Y, y_planes.get(&2)))
+            }
+            KeyCode::KeyF => {
+                //println!("middle horizontal plane counter clockwise");
+                Some((Vec3::NEG_Y, y_planes.get(&0)))
             }
             KeyCode::KeyV => {
                 //println!("bottom plane counter clockwise");
-                let plane_key = -2;
-                Some((Vec3::NEG_Y, y_planes.get(&plane_key).unwrap()))
+                Some((Vec3::NEG_Y, y_planes.get(&-2)))
             }
 
             _ => {
@@ -193,19 +182,21 @@ fn keyboard(
             }
         };
 
-        if let Some((axis, cubes)) = rotate_cubes {
-            for (cube, _) in cubes {
-                if let Some((_, trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
+        if let Some((axis, Some(cubes))) = rotate_cubes {
+            let mut i = 0;
+            for cube in cubes {
+                if let Some((_, trans)) = query.iter_mut().find(|(entity, _)| entity == cube) {
                     let rotate = Tween::new(
                         EaseFunction::Linear,
-                        std::time::Duration::from_millis(400),
+                        std::time::Duration::from_millis(300),
                         RotatePlane {
                             axis,
                             start: 0.0,
                             end: (90.0 as f32).to_radians(),
                             org: *trans,
                         },
-                    );
+                    ).with_completed_event(i);
+                    i += 1;
                     commands.entity(*cube).insert(Animator::new(rotate));
                 }
             }
@@ -213,12 +204,17 @@ fn keyboard(
     }
 }
 
+fn animation_complete(
+    mut reader: EventReader<TweenCompleted>,
+    mut commands: Commands,
+) {
+    for ev in reader.read() {
+        //println!("animation_complete {}", ev.user_data);
+        commands.entity(ev.entity).remove::<Animator<Transform>>();
+    }
+}
+
 fn spawn_camera(mut commands: Commands) {
-    let eye = Vec3 {
-        x: -20.0,
-        y: 10.0,
-        z: 7.0,
-    };
     commands.spawn((
         // Note we're setting the initial position below with yaw, pitch, and radius, hence
         // we don't set transform on the camera.
@@ -227,7 +223,7 @@ fn spawn_camera(mut commands: Commands) {
             button_orbit: MouseButton::Middle,
             button_pan: MouseButton::Middle,
             modifier_pan: Some(KeyCode::ShiftLeft),
-            radius: Some(7.0),
+            radius: Some(14.0),
             orbit_sensitivity: 0.5,
             ..default()
         },
