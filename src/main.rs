@@ -1,19 +1,13 @@
 use std::collections::HashMap;
-//use std::net::{SocketAddr, TcpListener};
-
 use bevy::window::WindowResolution;
 use bevy::{gltf::Gltf, reflect::List};
 use bevy::prelude::*;
-//use bevy_tokio_tasks::{TaskContext, TokioTasksPlugin, TokioTasksRuntime};
-//use crossbeam_channel::{bounded, Receiver};
-use smooth_bevy_cameras::{
-    controllers::orbit::{OrbitCameraBundle, OrbitCameraController, OrbitCameraPlugin},
-    LookTransformPlugin,
-};
+use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
+use bevy_tweening::lens::TransformRotateAxisLens;
+use bevy_tweening::{Animator, Tween, TweeningPlugin};
+use rotate_plane::RotatePlane;
 
-//mod tokioio;
-//use hyper::{body::{Bytes, Body, Frame}, Method, Request, Response, StatusCode};
-//use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
+mod rotate_plane;
 
 fn main() {
     App::new()
@@ -28,13 +22,10 @@ fn main() {
             ..default()
         }))
         .add_plugins((
-            OrbitCameraPlugin::default(),
-            LookTransformPlugin,
-            //TokioTasksPlugin::default(),
+            PanOrbitCameraPlugin,
+            TweeningPlugin,
         ))
         .add_systems(Startup, (spawn_camera, load_gltf))
-        //.add_systems(Startup, start_hyper)
-        //.add_systems(Update, move_cubes.run_if(in_state(AppState::Running)))
         .add_systems(Update, spawn_gltf_objects.run_if(in_state(AppState::AssetLoading)))
         .add_systems(Update, keyboard.run_if(in_state(AppState::Running)))
         .add_systems(OnEnter(AppState::Running), setup_cube)
@@ -89,155 +80,6 @@ fn spawn_gltf_objects(
     next_state.set(AppState::Running);
 }
 
-    /*
-fn start_hyper(mut commands: Commands, runtime: ResMut<TokioTasksRuntime>) {
-    let (tx, rx) = bounded::<u32>(1);
-    runtime.spawn_background_task(|_ctx| async move {
-        let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-
-        let listener = std::net::TcpListener::bind(addr).expect("fudge");
-        //let listener = tokio::net::TcpListener::bind(addr).await.expect("fudge");
-        println!("Listening on http://{}", addr);
-
-        loop {
-
-            //let (stream, _) = listener.accept().await.expect("fudge");
-            let (mut stream, _) = listener.accept().expect("fudge");
-            info!("listener.accept()");
-            let io = tokioio::TokioIo::new(stream);
-            tx.send(1234).unwrap();
-
-            let http = hyper::server::conn::http1::Builder::new();
-            let conn = http.serve_connection(io, hyper::service::service_fn(echo));
-            match conn.await {
-                Ok(_) => {
-                    println!("Served connection!");
-                }
-                Err(err) => {
-                    println!("Error serving connection: {:?}", err);
-                }
-            }
-        }
-    });
-
-    commands.insert_resource(StreamReceiver(rx));
-    println!("start_hyper");
-}
-    */
-
-/*
-fn start_hyper(mut commands: Commands, runtime: ResMut<TokioTasksRuntime>) {
-    let (tx, rx) = bounded::<u32>(1);
-    runtime.spawn_background_task(|_| async move {
-        let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-
-        let listener = std::net::TcpListener::bind(addr).expect("fudge");
-        println!("Listening on http://{}", addr);
-
-        loop {
-            let (mut stream, _) = listener.accept().expect("fudge");
-            let mut buf = [0; 128];
-            let _byte_count = stream.read(&mut buf);
-
-            tx.send(123456).unwrap();
-        }
-    });
-    commands.insert_resource(StreamReceiver(rx));
-    println!("start_hyper");
-}
-
-// This system reads from the receiver and sends events to Bevy
-fn read_stream(receiver: Res<StreamReceiver>, mut events: EventWriter<StreamEvent>) {
-    for from_stream in receiver.try_iter() {
-        events.send(StreamEvent(from_stream));
-    }
-}
-
-fn bevy_stream_event(mut _commands: Commands, mut reader: EventReader<StreamEvent>) {
-    for (per_frame, event) in reader.read().enumerate() {
-        info!("{:?} {:?}", per_frame, event);
-    }
-}
-*/
-
-/*
-fn empty() -> BoxBody<Bytes, hyper::Error> {
-    Empty::<Bytes>::new()
-        .map_err(|never| match never {})
-        .boxed()
-}
-
-fn full<T: Into<Bytes>>(chunk: T) -> BoxBody<Bytes, hyper::Error> {
-    Full::new(chunk.into())
-        .map_err(|never| match never {})
-        .boxed()
-}
-
-/// This is our service handler. It receives a Request, routes on its
-/// path, and returns a Future of a Response.
-async fn echo(
-    req: Request<hyper::body::Incoming>,
-) -> Result<Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
-    match (req.method(), req.uri().path()) {
-        // Serve some instructions at /
-        // curl 127.0.0.1:3000
-        (&Method::GET, "/") => Ok(Response::new(full(
-            "Try POSTing data to /echo such as: `curl localhost:3000/echo -XPOST -d \"hello world\"`",
-        ))),
-
-        // Simply echo the body back to the client.
-        // curl 127.0.0.1:3000/echo -XPOST -d "hello world"
-        (&Method::POST, "/echo") => Ok(Response::new(req.into_body().boxed())),
-
-        // Convert to uppercase before sending back to client using a stream.
-        (&Method::POST, "/echo/uppercase") => {
-            let frame_stream = req.into_body().map_frame(|frame| {
-                let frame = if let Ok(data) = frame.into_data() {
-                    data.iter()
-                        .map(|byte| byte.to_ascii_uppercase())
-                        .collect::<Bytes>()
-                } else {
-                    Bytes::new()
-                };
-
-                Frame::data(frame)
-            });
-
-            Ok(Response::new(frame_stream.boxed()))
-        }
-
-        // Reverse the entire body before sending back to the client.
-        //
-        // Since we don't know the end yet, we can't simply stream
-        // the chunks as they arrive as we did with the above uppercase endpoint.
-        // So here we do `.await` on the future, waiting on concatenating the full body,
-        // then afterwards the content can be reversed. Only then can we return a `Response`.
-        (&Method::POST, "/echo/reversed") => {
-            // To protect our server, reject requests with bodies larger than
-            // 64kbs of data.
-            let max = req.body().size_hint().upper().unwrap_or(u64::MAX);
-            if max > 1024 * 64 {
-                let mut resp = Response::new(full("Body too big"));
-                *resp.status_mut() = hyper::StatusCode::PAYLOAD_TOO_LARGE;
-                return Ok(resp);
-            }
-
-            let whole_body = req.collect().await?.to_bytes();
-
-            let reversed_body = whole_body.iter().rev().cloned().collect::<Vec<u8>>();
-            Ok(Response::new(full(reversed_body)))
-        }
-
-        // Return the 404 Not Found for other routes.
-        _ => {
-            let mut not_found = Response::new(empty());
-            *not_found.status_mut() = StatusCode::NOT_FOUND;
-            Ok(not_found)
-        }
-    }
-}
-*/
-
 fn setup_cube(
     mut commands: Commands,
     query: Query<(Entity, &mut Transform, &Name)>,
@@ -255,6 +97,7 @@ fn setup_cube(
 }
 
 fn keyboard(
+    mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
     mut query: Query<(Entity, &mut Transform, &Name), With<RubikCube>>,
 ) {
@@ -281,225 +124,183 @@ fn keyboard(
                 //assert!(v.len() == 9);
             }
         }
-                /*
-                let rotate = Tween::new(
-                    EaseFunction::ExponentialInOut,
-                    std::time::Duration::from_millis(REMOVE_DURATION),
-                    TransformRotateZLens {
-                        start: 0.0,
-                        end: (90.0 as f32).to_radians(),
-                    },
-                );
-                */
 
-
-        match press {
+        let rotate_cubes = match press {
             KeyCode::KeyU => {
                 //println!("left vertical plane counter clockwise");
-                let buddies = &z_planes;
                 let plane_key = -2;
-                let entry = buddies.get(&plane_key).unwrap();
-                for (cube, _) in entry {
-                    if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
-                        //trans.rotate_y(time.delta_secs() / 2.);
-                        trans.rotate_around(Vec3::default(), Quat::from_rotation_z((-45.0_f32).to_radians()));
-                    }
-                }
+                Some((Vec3::Z, z_planes.get(&plane_key).unwrap()))
             }
             KeyCode::KeyI => {
                 //println!("middle vertical plane counter clockwise");
-                let buddies = &z_planes;
                 let plane_key = 0;
-                let entry = buddies.get(&plane_key).unwrap();
-                for (cube, _) in entry {
-                    if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
-                        //trans.rotate_y(time.delta_secs() / 2.);
-                        trans.rotate_around(Vec3::default(), Quat::from_rotation_z((-45.0_f32).to_radians()));
-                    }
-                }
+                Some((Vec3::Z, z_planes.get(&plane_key).unwrap()))
             }
             KeyCode::KeyO => {
                 //println!("right vertical plane counter clockwise");
-                let buddies = &z_planes;
                 let plane_key = 2;
-                let entry = buddies.get(&plane_key).unwrap();
-                for (cube, _) in entry {
-                    if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
-                        //trans.rotate_y(time.delta_secs() / 2.);
-                        trans.rotate_around(Vec3::default(), Quat::from_rotation_z((-45.0_f32).to_radians()));
-                    }
-                }
+                Some((Vec3::Z, z_planes.get(&plane_key).unwrap()))
             }
             KeyCode::KeyJ => {
                 //println!("left vertical plane clockwise");
-                let buddies = &z_planes;
                 let plane_key = -2;
-                let entry = buddies.get(&plane_key).unwrap();
-                for (cube, _) in entry {
-                    if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
-                        //trans.rotate_y(time.delta_secs() / 2.);
-                        trans.rotate_around(Vec3::default(), Quat::from_rotation_z((45.0_f32).to_radians()));
-                    }
-                }
+                Some((Vec3::NEG_Z, z_planes.get(&plane_key).unwrap()))
             }
             KeyCode::KeyK => {
                 //println!("middle vertical plane clockwise");
-                let buddies = &z_planes;
                 let plane_key = 0;
-                let entry = buddies.get(&plane_key).unwrap();
-                for (cube, _) in entry {
-                    if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
-                        //trans.rotate_y(time.delta_secs() / 2.);
-                        trans.rotate_around(Vec3::default(), Quat::from_rotation_z((45.0_f32).to_radians()));
-                    }
-                }
+                Some((Vec3::NEG_Z, z_planes.get(&plane_key).unwrap()))
             }
             KeyCode::KeyL => {
                 //println!("right vertical plane clockwise");
-                let buddies = &z_planes;
                 let plane_key = 2;
-                let entry = buddies.get(&plane_key).unwrap();
-                for (cube, _) in entry {
-                    if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
-                        //trans.rotate_y(time.delta_secs() / 2.);
-                        trans.rotate_around(Vec3::default(), Quat::from_rotation_z((45.0_f32).to_radians()));
-                    }
-                }
+                Some((Vec3::NEG_Z, z_planes.get(&plane_key).unwrap()))
             }
 
             KeyCode::KeyW => {
                 //println!("top plane clockwise");
-                let buddies = &y_planes;
                 let plane_key = 2;
-                let entry = buddies.get(&plane_key).unwrap();
-                for (cube, _) in entry {
-                    if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
-                        //trans.rotate_y(time.delta_secs() / 2.);
-                        trans.rotate_around(Vec3::default(), Quat::from_rotation_y((-45.0_f32).to_radians()));
-                    }
-                }
+                Some((Vec3::Y, y_planes.get(&plane_key).unwrap()))
             }
             KeyCode::KeyR => {
                 //println!("top plane counter clockwise");
-                let buddies = &y_planes;
                 let plane_key = 2;
-                let entry = buddies.get(&plane_key).unwrap();
-                for (cube, _) in entry {
-                    if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
-                        //trans.rotate_y(time.delta_secs() / 2.);
-                        trans.rotate_around(Vec3::default(), Quat::from_rotation_y((45.0_f32).to_radians()));
-                    }
-                }
+                Some((Vec3::Y, y_planes.get(&plane_key).unwrap()))
             }
             KeyCode::KeyS => {
                 //println!("middle horizontal plane clockwise");
-                let buddies = &y_planes;
                 let plane_key = 0;
-                let entry = buddies.get(&plane_key).unwrap();
-                for (cube, _) in entry {
-                    if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
-                        //trans.rotate_y(time.delta_secs() / 2.);
-                        trans.rotate_around(Vec3::default(), Quat::from_rotation_y((-45.0_f32).to_radians()));
-                    }
-                }
+                Some((Vec3::Y, y_planes.get(&plane_key).unwrap()))
             }
             KeyCode::KeyF => {
                 //println!("middle horizontal plane counter clockwise");
-                let buddies = &y_planes;
                 let plane_key = 0;
-                let entry = buddies.get(&plane_key).unwrap();
-                for (cube, _) in entry {
-                    if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
-                        //trans.rotate_y(time.delta_secs() / 2.);
-                        trans.rotate_around(Vec3::default(), Quat::from_rotation_y((45.0_f32).to_radians()));
-                    }
-                }
+                Some((Vec3::NEG_Y, y_planes.get(&plane_key).unwrap()))
             }
             KeyCode::KeyX => {
                 //println!("bottom plane clockwise");
-                let buddies = &y_planes;
                 let plane_key = -2;
-                let entry = buddies.get(&plane_key).unwrap();
-                for (cube, _) in entry {
-                    if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
-                        //trans.rotate_y(time.delta_secs() / 2.);
-                        trans.rotate_around(Vec3::default(), Quat::from_rotation_y((-45.0_f32).to_radians()));
-                    }
-                }
+                Some((Vec3::NEG_Y, y_planes.get(&plane_key).unwrap()))
             }
             KeyCode::KeyV => {
                 //println!("bottom plane counter clockwise");
-                let buddies = &y_planes;
                 let plane_key = -2;
-                let entry = buddies.get(&plane_key).unwrap();
-                for (cube, _) in entry {
-                    if let Some((_, mut trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
-                        //trans.rotate_y(time.delta_secs() / 2.);
-                        trans.rotate_around(Vec3::default(), Quat::from_rotation_y((45.0_f32).to_radians()));
-                    }
-                }
+                Some((Vec3::NEG_Y, y_planes.get(&plane_key).unwrap()))
             }
 
             _ => {
+                None
+            }
+        };
+
+        if let Some((axis, cubes)) = rotate_cubes {
+            for (cube, _) in cubes {
+                if let Some((_, trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
+                    let rotate = Tween::new(
+                        EaseFunction::Linear,
+                        std::time::Duration::from_millis(400),
+                        RotatePlane {
+                            axis,
+                            start: 0.0,
+                            end: (90.0 as f32).to_radians(),
+                            org: *trans,
+                        },
+                    );
+                    commands.entity(*cube).insert(Animator::new(rotate));
+                }
             }
         }
-    }
-}
-
-                /*
-                let buddies = &x_buddies;
-                println!("x_buddies");
-                print_buddies_name(buddies);
-
-                let buddies = &y_buddies;
-                println!("y_buddies");
-                print_buddies_name(buddies);
-
-                let buddies = &z_buddies;
-                println!("z_buddies");
-                print_buddies_name(buddies);
-                */
-
-fn print_buddies_name(map: &HashMap<i32, Vec<(Entity, Name)>>) {
-    for (k, v) in map {
-        println!("key: {} len: {}", k, v.len());
-        for (_, item) in v {
-            println!("key: {} name: {}", k, item.as_str());
-        }
-    }
-}
-fn print_buddies(map: &HashMap<i32, Vec<Entity>>) {
-    for (k, v) in map {
-        println!("key: {} len: {}", k, v.len());
     }
 }
 
 fn spawn_camera(mut commands: Commands) {
-    let target: Vec3 = Vec3::ZERO;
-
     let eye = Vec3 {
         x: -20.0,
         y: 10.0,
         z: 7.0,
     };
-    let controller = OrbitCameraController::default();
-    println!("controller.enabled: {}", controller.enabled);
-    println!(
-        "controller.mouse_rotate_sensitivity: {}",
-        controller.enabled
-    );
-    println!(
-        "controller.mouse_translate_sensitivity: {}",
-        controller.enabled
-    );
-    println!(
-        "controller.mouse_wheel_zoom_sensitivity: {}",
-        controller.enabled
-    );
-    println!("controller.pixels_per_line: {}", controller.enabled);
-    println!("controller.smoothing_weight: {}", controller.enabled);
-
-    commands
-        .spawn(Camera3d::default())
-        .insert(OrbitCameraBundle::new(controller, eye, target, Vec3::Y));
+    commands.spawn((
+        // Note we're setting the initial position below with yaw, pitch, and radius, hence
+        // we don't set transform on the camera.
+        PanOrbitCamera {
+            focus: Vec3::ZERO,
+            button_orbit: MouseButton::Middle,
+            button_pan: MouseButton::Middle,
+            modifier_pan: Some(KeyCode::ShiftLeft),
+            radius: Some(7.0),
+            orbit_sensitivity: 0.5,
+            ..default()
+        },
+    ));
 }
+
+/*
+fn spawn_main_axis(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    let length = 200.0;
+    let width = 0.2;
+    //let x = Cuboid::new(x_length, y_length, z_length);
+    let x = Cuboid::new(length, width, width);
+    let y = Cuboid::new(width, length, width);
+    let z = Cuboid::new(width, width, length);
+
+    let empty_transform = Transform::from_translation(Vec3::ZERO);
+    let empty: Entity = commands
+        .spawn_empty()
+        .insert(empty_transform)
+        .insert(Visibility::Visible)
+        .insert(InheritedVisibility::default())
+        .insert(Name::from("Main Axis"))
+        .id();
+
+    let mut transform = Transform::default();
+    transform.translation.x = length / 2.0;
+
+    commands.entity(empty).with_children(|parent| {
+        parent
+            .spawn((
+                PbrBundle {
+                    mesh: meshes.add(Mesh::from(x)),
+                    material: materials.add(Color::rgb(1.0, 0.0, 0.0)),
+                    transform,
+                    visibility: Visibility::Visible,
+                    ..default()
+                },
+                bevy::pbr::NotShadowCaster,
+            ))
+            .insert(Name::from("x-axis"));
+        let mut transform = Transform::default();
+        transform.translation.y = length / 2.0;
+        parent
+            .spawn((
+                PbrBundle {
+                    mesh: meshes.add(Mesh::from(y)),
+                    material: materials.add(Color::rgb(0.0, 1.0, 0.0)),
+                    transform,
+                    visibility: Visibility::Visible,
+                    ..default()
+                },
+                NotShadowCaster,
+            ))
+            .insert(Name::from("y-axis"));
+        let mut transform = Transform::default();
+        transform.translation.z = length / 2.0;
+        parent
+            .spawn((
+                PbrBundle {
+                    mesh: meshes.add(Mesh::from(z)),
+                    material: materials.add(Color::rgb(0.0, 0.0, 1.0)),
+                    transform,
+                    visibility: Visibility::Visible,
+                    ..default()
+                },
+                NotShadowCaster,
+                BoneAxis,
+            ))
+            .insert(Name::from("z-axis"));
+    });
+}
+*/

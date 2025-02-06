@@ -306,7 +306,6 @@ version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bb2a21c9f3306676077a88700bb8f354be779cf9caba9c21e94da9e696751af4"
 dependencies = [
- "bevy_dylib",
  "bevy_internal",
 ]
 
@@ -523,15 +522,6 @@ dependencies = [
  "bevy_utils",
  "const-fnv1a-hash",
  "sysinfo",
-]
-
-[[package]]
-name = "bevy_dylib"
-version = "0.15.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b120f96b1f18f3aac28729b6d7765114486b64df4c2af3314fe2bf30d4eb11c3"
-dependencies = [
- "bevy_internal",
 ]
 
 [[package]]
@@ -832,6 +822,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b53f0cf879a0682280937f515ecf00ab2140f7224881d6a621f40093a36a2ef6"
 dependencies = [
  "glam",
+]
+
+[[package]]
+name = "bevy_panorbit_camera"
+version = "0.22.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b09b74e5e7280fd491dee92c580b3c6ccae88b8586246a567830e91ccc32a15"
+dependencies = [
+ "bevy",
 ]
 
 [[package]]
@@ -3533,9 +3532,8 @@ name = "rubiks_cube"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "bevy_panorbit_camera",
  "bevy_tweening",
- "pin-project-lite",
- "smooth-bevy-cameras",
 ]
 
 [[package]]
@@ -3715,16 +3713,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "74212e6bbe9a4352329b2f68ba3130c15a3f26fe88ff22dbdc6cdd58fa85e99c"
 dependencies = [
  "serde",
-]
-
-[[package]]
-name = "smooth-bevy-cameras"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28a7c53f442c193a5d73a6b4f0b2456328c85497525847df9156cc719f6f18b5"
-dependencies = [
- "approx",
- "bevy",
 ]
 
 [[package]]
