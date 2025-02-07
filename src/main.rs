@@ -1,10 +1,10 @@
-use std::collections::HashMap;
-use bevy::window::WindowResolution;
 use bevy::gltf::Gltf;
 use bevy::prelude::*;
+use bevy::window::WindowResolution;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_tweening::{Animator, Tween, TweenCompleted, TweeningPlugin};
 use rotate_plane::RotatePlane;
+use std::collections::{HashMap, VecDeque};
 
 mod rotate_plane;
 
@@ -20,16 +20,24 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins((
-            PanOrbitCameraPlugin,
-            TweeningPlugin,
-        ))
+        .add_plugins((PanOrbitCameraPlugin, TweeningPlugin))
         .add_systems(Startup, (spawn_camera, load_gltf))
-        .add_systems(Update, spawn_gltf_objects.run_if(in_state(AppState::AssetLoading)))
-        .add_systems(Update, (keyboard, animation_complete, check_moving).run_if(in_state(AppState::Running)))
+        .add_systems(
+            Update,
+            spawn_gltf_objects.run_if(in_state(AppState::AssetLoading)),
+        )
+        .add_systems(
+            Update,
+            (check_moving, keyboard, animation_complete)
+                .chain()
+                .run_if(in_state(AppState::Running)),
+        )
         .add_systems(OnEnter(AppState::Running), setup_cube)
         .insert_state(AppState::default())
-        .insert_resource(AppData { moving_cubes: false, key_buffer: vec![] })
+        .insert_resource(AppData {
+            moving_cubes: false,
+            key_buffer: VecDeque::new(),
+        })
         .run();
 }
 
@@ -67,10 +75,7 @@ fn spawn_gltf_objects(
     next_state.set(AppState::Running);
 }
 
-fn setup_cube(
-    mut commands: Commands,
-    query: Query<(Entity, &mut Transform, &Name)>,
-) {
+fn setup_cube(mut commands: Commands, query: Query<(Entity, &mut Transform, &Name)>) {
     for (entity, _trans, name) in query.iter() {
         if name.starts_with("Cube.") {
             let mut splitsies = name.split("Cube.");
@@ -83,11 +88,10 @@ fn setup_cube(
     }
 }
 
-
 #[derive(Resource)]
 struct AppData {
     moving_cubes: bool,
-    key_buffer: Vec<KeyCode>,
+    key_buffer: VecDeque<KeyCode>,
 }
 
 fn check_moving(
@@ -107,21 +111,27 @@ fn keyboard(
     mut app_data: ResMut<AppData>,
     mut query: Query<(Entity, &mut Transform), With<RubikCube>>,
 ) {
+    app_data.key_buffer.extend(keys.get_just_released());
     if app_data.moving_cubes {
-        app_data.key_buffer.extend(keys.get_just_released());
         return;
     }
-    for press in keys.get_just_released() {
+    if let Some(press) = app_data.key_buffer.pop_front() {
         // cubes can't be moving when getting the plane locations
         let mut z_planes: HashMap<i32, Vec<Entity>> = HashMap::new();
         let mut y_planes: HashMap<i32, Vec<Entity>> = HashMap::new();
         let mut x_planes: HashMap<i32, Vec<Entity>> = HashMap::new();
         for (entity, transform) in &mut query {
-            let entry = x_planes.entry(transform.translation.x.round() as i32).or_insert(vec![]);
+            let entry = x_planes
+                .entry(transform.translation.x.round() as i32)
+                .or_insert(vec![]);
             entry.push(entity);
-            let entry = y_planes.entry(transform.translation.y.round() as i32).or_insert(vec![]);
+            let entry = y_planes
+                .entry(transform.translation.y.round() as i32)
+                .or_insert(vec![]);
             entry.push(entity);
-            let entry = z_planes.entry(transform.translation.z.round() as i32).or_insert(vec![]);
+            let entry = z_planes
+                .entry(transform.translation.z.round() as i32)
+                .or_insert(vec![]);
             entry.push(entity);
         }
 
@@ -177,9 +187,7 @@ fn keyboard(
                 Some((Vec3::NEG_Y, y_planes.get(&-2)))
             }
 
-            _ => {
-                None
-            }
+            _ => None,
         };
 
         if let Some((axis, Some(cubes))) = rotate_cubes {
@@ -188,14 +196,15 @@ fn keyboard(
                 if let Some((_, trans)) = query.iter_mut().find(|(entity, _)| entity == cube) {
                     let rotate = Tween::new(
                         EaseFunction::Linear,
-                        std::time::Duration::from_millis(300),
+                        std::time::Duration::from_millis(200),
                         RotatePlane {
                             axis,
                             start: 0.0,
                             end: (90.0 as f32).to_radians(),
                             org: *trans,
                         },
-                    ).with_completed_event(i);
+                    )
+                    .with_completed_event(i);
                     i += 1;
                     commands.entity(*cube).insert(Animator::new(rotate));
                 }
@@ -204,10 +213,7 @@ fn keyboard(
     }
 }
 
-fn animation_complete(
-    mut reader: EventReader<TweenCompleted>,
-    mut commands: Commands,
-) {
+fn animation_complete(mut reader: EventReader<TweenCompleted>, mut commands: Commands) {
     for ev in reader.read() {
         //println!("animation_complete {}", ev.user_data);
         commands.entity(ev.entity).remove::<Animator<Transform>>();
