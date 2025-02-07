@@ -226,8 +226,8 @@ fn spawn_camera(mut commands: Commands) {
         // we don't set transform on the camera.
         PanOrbitCamera {
             focus: Vec3::ZERO,
-            button_orbit: MouseButton::Middle,
-            button_pan: MouseButton::Middle,
+            button_orbit: MouseButton::Left,
+            button_pan: MouseButton::Left,
             modifier_pan: Some(KeyCode::ShiftLeft),
             radius: Some(14.0),
             orbit_sensitivity: 0.5,
