@@ -5,6 +5,7 @@ use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_tweening::{Animator, Tween, TweenCompleted, TweeningPlugin};
 use rotate_plane::RotatePlane;
 use std::collections::{HashMap, VecDeque};
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 mod rotate_plane;
 
@@ -20,7 +21,7 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins((PanOrbitCameraPlugin, TweeningPlugin))
+        .add_plugins((PanOrbitCameraPlugin, TweeningPlugin, WorldInspectorPlugin::new()))
         .add_systems(Startup, (spawn_camera, load_gltf))
         .add_systems(
             Update,
@@ -28,7 +29,7 @@ fn main() {
         )
         .add_systems(
             Update,
-            (check_moving, keyboard, animation_complete)
+            (check_moving, keyboard, animation_complete, what_colors)
                 .chain()
                 .run_if(in_state(AppState::Running)),
         )
@@ -75,14 +76,22 @@ fn spawn_gltf_objects(
     next_state.set(AppState::Running);
 }
 
-fn setup_cube(mut commands: Commands, query: Query<(Entity, &mut Transform, &Name)>) {
-    for (entity, _trans, name) in query.iter() {
+fn setup_cube(
+    mut commands: Commands,
+    materials: Res<Assets<StandardMaterial>>,
+    query: Query<(Entity, &mut Transform, &Name, &MeshMaterial3d<StandardMaterial>)>,
+) {
+    for (entity, _trans, name, material) in query.iter() {
         if name.starts_with("Cube.") {
             let mut splitsies = name.split("Cube.");
             let _nothing_before = splitsies.next();
             let after_cube = splitsies.next().unwrap();
             if !after_cube.contains(".") {
+                println!("{}", name);
+                //materials.get(entity);
                 commands.entity(entity).insert(RubikCube);
+            } else {
+                println!("\t{}", name);
             }
         }
     }
@@ -104,6 +113,8 @@ fn check_moving(
         app_data.moving_cubes = false;
     }
 }
+
+fn what_colors(_query: Query<Entity, With<RubikCube>>) {}
 
 fn keyboard(
     mut commands: Commands,
