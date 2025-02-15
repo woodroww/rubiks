@@ -29,7 +29,7 @@ fn main() {
         )
         .add_systems(
             Update,
-            (check_moving, keyboard, animation_complete, what_colors)
+            (check_moving, keyboard, animation_complete, analyize_cube)
                 .chain()
                 .run_if(in_state(AppState::Running)),
         )
@@ -51,7 +51,11 @@ enum AppState {
 
 #[derive(Component, Reflect, Default, Debug)]
 #[reflect(Component)]
-pub struct RubikCube;
+pub struct RubikCube {
+    cube: u8,
+    sub: Option<u8>,
+    color: Option<Color>,
+}
 
 #[derive(Resource)]
 struct RubikScene(Handle<Gltf>);
@@ -76,22 +80,51 @@ fn spawn_gltf_objects(
     next_state.set(AppState::Running);
 }
 
+fn analyize_cube(
+    query: Query<(Entity, &RubikCube)>,
+    mut done: Local<bool>,
+) {
+    if !*done {
+        let mut cube_map: HashMap<u8, u8> = HashMap::new();
+        for (_, cube) in query.iter() {
+            let entry = cube_map.entry(cube.cube).or_insert(0);
+            *entry += 1;
+        }
+        println!("{:?}", cube_map);
+        *done = true;
+    }
+}
+
+
 fn setup_cube(
     mut commands: Commands,
     materials: Res<Assets<StandardMaterial>>,
-    query: Query<(Entity, &mut Transform, &Name, &MeshMaterial3d<StandardMaterial>)>,
+    query: Query<(Entity, &mut Transform, &Name, Option<&MeshMaterial3d<StandardMaterial>>)>,
 ) {
     for (entity, _trans, name, material) in query.iter() {
         if name.starts_with("Cube.") {
             let mut splitsies = name.split("Cube.");
             let _nothing_before = splitsies.next();
             let after_cube = splitsies.next().unwrap();
-            if !after_cube.contains(".") {
-                println!("{}", name);
-                //materials.get(entity);
-                commands.entity(entity).insert(RubikCube);
+            if after_cube.contains(".") {
+                // Cube.026.0
+                match materials.get(material.unwrap()) {
+                    Some(material) => {
+                        let mut split_again = after_cube.split(".");
+                        let cube_numbers = split_again.next().unwrap();
+                        let cube = cube_numbers.parse::<u8>().unwrap();
+                        let sub = split_again.next().unwrap().parse::<u8>().unwrap();
+                        let color = RubikCube { cube, sub: Some(sub), color: Some(material.base_color) };
+                        commands.entity(entity).insert(color);
+                    }
+                    None => {
+                        println!("no material");
+                    }
+                }
             } else {
-                println!("\t{}", name);
+                // Cube.026
+                let cube = after_cube.parse::<u8>().unwrap();
+                commands.entity(entity).insert(RubikCube { cube, sub: None, color: None });
             }
         }
     }
@@ -113,8 +146,6 @@ fn check_moving(
         app_data.moving_cubes = false;
     }
 }
-
-fn what_colors(_query: Query<Entity, With<RubikCube>>) {}
 
 fn keyboard(
     mut commands: Commands,
