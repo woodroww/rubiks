@@ -21,7 +21,7 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins((PanOrbitCameraPlugin, TweeningPlugin, WorldInspectorPlugin::new()))
+        .add_plugins((PanOrbitCameraPlugin, TweeningPlugin, WorldInspectorPlugin::new(), MeshPickingPlugin))
         .add_systems(Startup, (spawn_camera, load_gltf))
         .add_systems(
             Update,
@@ -83,18 +83,33 @@ fn spawn_gltf_objects(
 fn analyize_cube(
     query: Query<(Entity, &RubikCube)>,
     mut done: Local<bool>,
+    mut commands: Commands,
 ) {
     if !*done {
         let mut cube_map: HashMap<u8, u8> = HashMap::new();
-        for (_, cube) in query.iter() {
+        for (entity, cube) in query.iter() {
             let entry = cube_map.entry(cube.cube).or_insert(0);
             *entry += 1;
+            commands.entity(entity).observe(cube_click);
         }
         println!("{:?}", cube_map);
         *done = true;
     }
 }
 
+fn cube_click(
+    click: Trigger<Pointer<Click>>,
+    cubes: Query<&RubikCube>,
+) {
+    match cubes.get(click.entity()) {
+        Ok(cube) => {
+            println!("cube clicked {:?}", cube);
+        }
+        Err(_) => {
+            println!("errororororororo");
+        }
+    }
+}
 
 fn setup_cube(
     mut commands: Commands,
@@ -151,7 +166,7 @@ fn keyboard(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
     mut app_data: ResMut<AppData>,
-    mut query: Query<(Entity, &mut Transform), With<RubikCube>>,
+    mut query: Query<(Entity, &mut Transform, &RubikCube)>,
 ) {
     app_data.key_buffer.extend(keys.get_just_released());
     if app_data.moving_cubes {
@@ -162,19 +177,21 @@ fn keyboard(
         let mut z_planes: HashMap<i32, Vec<Entity>> = HashMap::new();
         let mut y_planes: HashMap<i32, Vec<Entity>> = HashMap::new();
         let mut x_planes: HashMap<i32, Vec<Entity>> = HashMap::new();
-        for (entity, transform) in &mut query {
-            let entry = x_planes
-                .entry(transform.translation.x.round() as i32)
-                .or_insert(vec![]);
-            entry.push(entity);
-            let entry = y_planes
-                .entry(transform.translation.y.round() as i32)
-                .or_insert(vec![]);
-            entry.push(entity);
-            let entry = z_planes
-                .entry(transform.translation.z.round() as i32)
-                .or_insert(vec![]);
-            entry.push(entity);
+        for (entity, transform, cube) in &mut query {
+            if cube.sub.is_none() {
+                let entry = x_planes
+                    .entry(transform.translation.x.round() as i32)
+                    .or_insert(vec![]);
+                entry.push(entity);
+                let entry = y_planes
+                    .entry(transform.translation.y.round() as i32)
+                    .or_insert(vec![]);
+                entry.push(entity);
+                let entry = z_planes
+                    .entry(transform.translation.z.round() as i32)
+                    .or_insert(vec![]);
+                entry.push(entity);
+            }
         }
 
         let rotate_cubes = match press {
@@ -235,7 +252,7 @@ fn keyboard(
         if let Some((axis, Some(cubes))) = rotate_cubes {
             let mut i = 0;
             for cube in cubes {
-                if let Some((_, trans)) = query.iter_mut().find(|(entity, _)| entity == cube) {
+                if let Some((_, trans, _)) = query.iter_mut().find(|(entity, _, _)| entity == cube) {
                     let rotate = Tween::new(
                         EaseFunction::Linear,
                         std::time::Duration::from_millis(200),
